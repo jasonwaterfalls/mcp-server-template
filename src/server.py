@@ -17,7 +17,7 @@ from fastmcp import FastMCP
 mcp = FastMCP("Plaid MCP Server")
 
 configuration = plaid.Configuration(
-    host=plaid.Environment.Development,
+    host=getattr(plaid.Environment, os.environ.get("PLAID_ENV", "Development")),
     api_key={
         "clientId": os.environ["PLAID_CLIENT_ID"],
         "secret": os.environ["PLAID_SECRET"],
@@ -27,13 +27,18 @@ plaid_client = plaid_api.PlaidApi(plaid.ApiClient(configuration))
 
 
 @mcp.tool(description="Create a Plaid Link token to initiate the bank account connection flow for a given user")
-def create_link_token(user_id: str) -> dict:
+def create_link_token(
+    user_id: str,
+    products: list[str] = ["transactions"],
+    country_codes: list[str] = ["US"],
+    language: str = "en",
+) -> dict:
     request = LinkTokenCreateRequest(
         user=LinkTokenCreateRequestUser(client_user_id=user_id),
         client_name="MCP Plaid Server",
-        products=[Products("transactions")],
-        country_codes=[CountryCode("US")],
-        language="en",
+        products=[Products(p) for p in products],
+        country_codes=[CountryCode(c) for c in country_codes],
+        language=language,
     )
     response = plaid_client.link_token_create(request)
     return {"link_token": response["link_token"], "expiration": response["expiration"]}
@@ -81,13 +86,13 @@ def get_balance(access_token: str) -> dict:
     return {"balances": balances}
 
 
-@mcp.tool(description="Fetch transactions for a Plaid access token between start_date and end_date (YYYY-MM-DD format)")
-def get_transactions(access_token: str, start_date: str, end_date: str, max_results: int = 100) -> dict:
+@mcp.tool(description="Fetch transactions for a Plaid access token between start_date and end_date (YYYY-MM-DD format). Use offset to paginate beyond max_results.")
+def get_transactions(access_token: str, start_date: str, end_date: str, max_results: int = 100, offset: int = 0) -> dict:
     request = TransactionsGetRequest(
         access_token=access_token,
         start_date=date.fromisoformat(start_date),
         end_date=date.fromisoformat(end_date),
-        options=TransactionsGetRequestOptions(count=max_results),
+        options=TransactionsGetRequestOptions(count=max_results, offset=offset),
     )
     response = plaid_client.transactions_get(request)
     txns = [
