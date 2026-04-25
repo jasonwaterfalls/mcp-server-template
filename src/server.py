@@ -17,7 +17,7 @@ from fastmcp import FastMCP
 mcp = FastMCP("Plaid MCP Server")
 
 configuration = plaid.Configuration(
-    host=getattr(plaid.Environment, os.environ.get("PLAID_ENV", "Development")),
+    host=getattr(plaid.Environment, os.environ.get("PLAID_ENV", "Sandbox")),
     api_key={
         "clientId": os.environ["PLAID_CLIENT_ID"],
         "secret": os.environ["PLAID_SECRET"],

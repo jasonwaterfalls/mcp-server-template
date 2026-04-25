@@ -34,7 +34,7 @@ Open http://localhost:3000 and connect to `http://localhost:8000/mcp` using "Str
 4. In the Railway service **Variables** tab, set:
    - `PLAID_CLIENT_ID` — your Plaid client ID
    - `PLAID_SECRET` — your Plaid secret for the chosen environment
-   - `PLAID_ENV` *(optional)* — `Sandbox`, `Development` (default), or `Production`
+   - `PLAID_ENV` *(optional)* — `Sandbox` (default, fake data) or `Production` (real data, first ~100 connections free)
 5. Generate a public domain in Railway's **Settings → Networking**
 
 Your server will be available at `https://your-service-name.up.railway.app/mcp` (NOTE THE `/mcp`!)
