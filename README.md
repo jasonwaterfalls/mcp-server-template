@@ -1,8 +1,6 @@
 # MCP Server Template
 
-A minimal [FastMCP](https://github.com/jlowin/fastmcp) server template for Render deployment with streamable HTTP transport.
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/InteractionCo/mcp-server-template)
+A minimal [FastMCP](https://github.com/jlowin/fastmcp) server template wrapping the [Plaid API](https://plaid.com/docs/), deployable to Railway with streamable HTTP transport.
 
 ## Local Development
 
@@ -28,19 +26,25 @@ npx @modelcontextprotocol/inspector
 
 Open http://localhost:3000 and connect to `http://localhost:8000/mcp` using "Streamable HTTP" transport (NOTE THE `/mcp`!).
 
-## Deployment
+## Deployment (Railway)
 
-### Option 1: One-Click Deploy
-Click the "Deploy to Render" button above.
-
-### Option 2: Manual Deployment
 1. Fork this repository
-2. Connect your GitHub account to Render
-3. Create a new Web Service on Render
-4. Connect your forked repository
-5. Render will automatically detect the `render.yaml` configuration
+2. Create a new project on [Railway](https://railway.app) and connect your forked repo
+3. Railway will auto-detect Python via Nixpacks and use `railway.toml` for the start command
+4. In the Railway service **Variables** tab, set:
+   - `PLAID_CLIENT_ID` — your Plaid client ID
+   - `PLAID_SECRET` — your Plaid production secret
+5. Generate a public domain in Railway's **Settings → Networking**
 
-Your server will be available at `https://your-service-name.onrender.com/mcp` (NOTE THE `/mcp`!)
+Your server will be available at `https://your-service-name.up.railway.app/mcp` (NOTE THE `/mcp`!)
+
+### Local environment variables
+
+```bash
+export PLAID_CLIENT_ID=...
+export PLAID_SECRET=...
+python src/server.py
+```
 
 ## Poke Setup
 
