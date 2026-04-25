@@ -33,7 +33,8 @@ Open http://localhost:3000 and connect to `http://localhost:8000/mcp` using "Str
 3. Railway will auto-detect Python via Nixpacks and use `railway.toml` for the start command
 4. In the Railway service **Variables** tab, set:
    - `PLAID_CLIENT_ID` — your Plaid client ID
-   - `PLAID_SECRET` — your Plaid production secret
+   - `PLAID_SECRET` — your Plaid secret for the chosen environment
+   - `PLAID_ENV` *(optional)* — `Sandbox`, `Development` (default), or `Production`
 5. Generate a public domain in Railway's **Settings → Networking**
 
 Your server will be available at `https://your-service-name.up.railway.app/mcp` (NOTE THE `/mcp`!)
