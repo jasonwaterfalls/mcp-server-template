@@ -26,7 +26,14 @@ configuration = plaid.Configuration(
 plaid_client = plaid_api.PlaidApi(plaid.ApiClient(configuration))
 
 
-@mcp.tool(description="Create a Plaid Link token to initiate the bank account connection flow for a given user")
+def _access_token() -> str:
+    token = os.environ.get("PLAID_ACCESS_TOKEN")
+    if not token:
+        raise ValueError("PLAID_ACCESS_TOKEN not set — complete the Plaid Link flow first.")
+    return token
+
+
+@mcp.tool(description="Create a Plaid Link token to start the one-time bank connection flow")
 def create_link_token(
     user_id: str,
     products: list[str] = ["transactions"],
@@ -44,73 +51,94 @@ def create_link_token(
     return {"link_token": response["link_token"], "expiration": response["expiration"]}
 
 
-@mcp.tool(description="Exchange a public token (from Plaid Link) for a permanent access token")
+@mcp.tool(description="Exchange a public token from Plaid Link for a permanent access token. After calling this, copy access_token into the PLAID_ACCESS_TOKEN Railway variable and redeploy.")
 def exchange_public_token(public_token: str) -> dict:
     request = ItemPublicTokenExchangeRequest(public_token=public_token)
     response = plaid_client.item_public_token_exchange(request)
-    return {"access_token": response["access_token"], "item_id": response["item_id"]}
+    return {
+        "access_token": response["access_token"],
+        "item_id": response["item_id"],
+        "next_step": "Set PLAID_ACCESS_TOKEN to the access_token value in Railway → Variables, then redeploy.",
+    }
 
 
-@mcp.tool(description="List all accounts associated with a Plaid access token")
-def get_accounts(access_token: str) -> dict:
-    response = plaid_client.accounts_get(AccountsGetRequest(access_token=access_token))
-    accounts = [
-        {
-            "account_id": a["account_id"],
-            "name": a["name"],
-            "official_name": a.get("official_name"),
-            "type": str(a["type"]),
-            "subtype": str(a["subtype"]),
-            "mask": a.get("mask"),
-        }
-        for a in response["accounts"]
-    ]
-    return {"accounts": accounts}
+@mcp.tool(description="List all linked bank accounts")
+def get_accounts() -> dict:
+    response = plaid_client.accounts_get(AccountsGetRequest(access_token=_access_token()))
+    return {
+        "accounts": [
+            {
+                "account_id": a["account_id"],
+                "name": a["name"],
+                "official_name": a.get("official_name"),
+                "type": str(a["type"]),
+                "subtype": str(a["subtype"]),
+                "mask": a.get("mask"),
+            }
+            for a in response["accounts"]
+        ]
+    }
 
 
-@mcp.tool(description="Get real-time balances for all accounts tied to a Plaid access token")
-def get_balance(access_token: str) -> dict:
+@mcp.tool(description="Get real-time balances for all linked accounts")
+def get_balance() -> dict:
     response = plaid_client.accounts_balance_get(
-        AccountsBalanceGetRequest(access_token=access_token)
+        AccountsBalanceGetRequest(access_token=_access_token())
     )
-    balances = [
-        {
-            "account_id": a["account_id"],
-            "name": a["name"],
-            "available": a["balances"]["available"],
-            "current": a["balances"]["current"],
-            "currency": a["balances"]["iso_currency_code"],
-        }
-        for a in response["accounts"]
-    ]
-    return {"balances": balances}
+    return {
+        "balances": [
+            {
+                "account_id": a["account_id"],
+                "name": a["name"],
+                "available": a["balances"]["available"],
+                "current": a["balances"]["current"],
+                "currency": a["balances"]["iso_currency_code"],
+            }
+            for a in response["accounts"]
+        ]
+    }
 
 
-@mcp.tool(description="Fetch transactions for a Plaid access token between start_date and end_date (YYYY-MM-DD format). Use offset to paginate beyond max_results.")
-def get_transactions(access_token: str, start_date: str, end_date: str, max_results: int = 100, offset: int = 0) -> dict:
+@mcp.tool(description="Fetch transactions between start_date and end_date (YYYY-MM-DD). Use offset to paginate beyond max_results.")
+def get_transactions(start_date: str, end_date: str, max_results: int = 100, offset: int = 0) -> dict:
     request = TransactionsGetRequest(
-        access_token=access_token,
+        access_token=_access_token(),
         start_date=date.fromisoformat(start_date),
         end_date=date.fromisoformat(end_date),
         options=TransactionsGetRequestOptions(count=max_results, offset=offset),
     )
     response = plaid_client.transactions_get(request)
-    txns = [
-        {
-            "transaction_id": t["transaction_id"],
-            "date": str(t["date"]),
-            "name": t["name"],
-            "amount": t["amount"],
-            "currency": t["iso_currency_code"],
-            "category": t.get("category"),
-            "account_id": t["account_id"],
-        }
-        for t in response["transactions"]
-    ]
-    return {"transactions": txns, "total_transactions": response["total_transactions"]}
+    return {
+        "transactions": [
+            {
+                "transaction_id": t["transaction_id"],
+                "date": str(t["date"]),
+                "name": t["name"],
+                "amount": t["amount"],
+                "currency": t["iso_currency_code"],
+                "category": t.get("category"),
+                "account_id": t["account_id"],
+            }
+            for t in response["transactions"]
+        ],
+        "total_transactions": response["total_transactions"],
+    }
 
 
 if __name__ == "__main__":
+    import uvicorn
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
+
+    class _APIKeyMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            api_key = os.environ.get("MCP_API_KEY")
+            if api_key and request.headers.get("X-API-Key") != api_key:
+                return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            return await call_next(request)
+
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting Plaid MCP server on 0.0.0.0:{port}")
-    mcp.run(transport="http", host="0.0.0.0", port=port, stateless_http=True)
+    app = mcp.http_app(stateless_http=True)
+    app.add_middleware(_APIKeyMiddleware)
+    uvicorn.run(app, host="0.0.0.0", port=port)
