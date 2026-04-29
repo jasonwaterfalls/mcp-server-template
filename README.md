@@ -1,8 +1,6 @@
 # MCP Server Template
 
-A minimal [FastMCP](https://github.com/jlowin/fastmcp) server template for Render deployment with streamable HTTP transport.
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/InteractionCo/mcp-server-template)
+A minimal [FastMCP](https://github.com/jlowin/fastmcp) server template wrapping the [Plaid API](https://plaid.com/docs/), deployable to Railway with streamable HTTP transport.
 
 ## Local Development
 
@@ -28,19 +26,39 @@ npx @modelcontextprotocol/inspector
 
 Open http://localhost:3000 and connect to `http://localhost:8000/mcp` using "Streamable HTTP" transport (NOTE THE `/mcp`!).
 
-## Deployment
+## Deployment (Railway)
 
-### Option 1: One-Click Deploy
-Click the "Deploy to Render" button above.
-
-### Option 2: Manual Deployment
 1. Fork this repository
-2. Connect your GitHub account to Render
-3. Create a new Web Service on Render
-4. Connect your forked repository
-5. Render will automatically detect the `render.yaml` configuration
+2. Create a new project on [Railway](https://railway.app) and connect your forked repo
+3. Railway will auto-detect Python via Nixpacks and use `railway.toml` for the start command
+4. In the Railway service **Variables** tab, set:
+   - `PLAID_CLIENT_ID` — your Plaid client ID
+   - `PLAID_SECRET` — your Plaid secret for the chosen environment
+   - `PLAID_ENV` — `Sandbox` (fake data) or `Production` (real data, first ~100 connections free)
+   - `MCP_API_KEY` — a secret string your AI agents will send as the `X-API-Key` header
+   - `PLAID_ACCESS_TOKEN` — leave blank for now; you'll fill this in after the one-time bank link step below
+5. Generate a public domain in Railway's **Settings → Networking**
 
-Your server will be available at `https://your-service-name.onrender.com/mcp` (NOTE THE `/mcp`!)
+Your server will be available at `https://your-service-name.up.railway.app/mcp` (NOTE THE `/mcp`!)
+
+## One-time bank account setup
+
+You only need to do this once per bank:
+
+1. Call `create_link_token` with any user ID string (e.g. `"me"`)
+2. Complete the Plaid Link flow in a browser using that token (see [Plaid Quickstart](https://github.com/plaid/quickstart) or [Hosted Link](https://plaid.com/docs/link/hosted-link/))
+3. Call `exchange_public_token` with the token Plaid returns
+4. Copy the `access_token` from the response into Railway → Variables → `PLAID_ACCESS_TOKEN`, then redeploy
+
+After that, your AI agents can call `get_balance`, `get_accounts`, and `get_transactions` with no extra setup — the server handles credentials automatically.
+
+### Local environment variables
+
+```bash
+export PLAID_CLIENT_ID=...
+export PLAID_SECRET=...
+python src/server.py
+```
 
 ## Poke Setup
 
